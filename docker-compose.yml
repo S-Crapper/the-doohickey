@@ -1,0 +1,10 @@
+services:
+  stoatcord-bot:
+    image: stoatcord-bot:latest
+    container_name: stoatcord-bot
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "3210:3210"
+    volumes:
+      - ./data:/data

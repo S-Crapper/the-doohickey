@@ -276,9 +276,9 @@ export function setupStoatToDiscordRelay(
       const parentMapping = store.getBridgeMessageByStoatId(parentStoatId);
       if (parentMapping) {
         // Reference the Discord message in a quote-style prefix
-        content = `> *Replying to [message](https://discord.com/channels/@me/${link.discord_channel_id}/${parentMapping.discord_message_id})*\n${content}`;
+        content = `⤷ *Replying to [message](https://discord.com/channels/@me/${link.discord_channel_id}/${parentMapping.discord_message_id})*\n${content}`;
       } else {
-        content = `> *Replying to a message*\n${content}`;
+        content = `⤷ *Replying to a message*\n${content}`;
       }
     }
 
