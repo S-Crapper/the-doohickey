@@ -64,6 +64,9 @@ export function registerDiscordEvents(
         case "token":
           await handleToken(interaction, store);
           break;
+        case "link-role":
+          await handleLinkRole(interaction, store, stoatClient);
+          break;
       }
     } catch (err) {
       console.error(
@@ -326,6 +329,50 @@ async function handleUnlink(
     content: `Unlinked from Stoat channel \`${link.stoat_channel_id}\`. Bridging stopped.`,
     ephemeral: true,
   });
+}
+
+async function handleLinkRole(
+  interaction: ChatInputCommandInteraction,
+  store: Store,
+  stoatClient: StoatClient
+): Promise<void> {
+  const guildId = interaction.guildId;
+  if (!guildId) {
+    await interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
+    return;
+  }
+
+  const discordRole = interaction.options.getRole("discord_role", true);
+  const stoatRoleId = interaction.options.getString("stoat_role_id", true);
+
+  // Ensure server is linked
+  const serverLink = store.getServerLink(guildId);
+  if (!serverLink) {
+    await interaction.reply({ content: "This Discord guild is not linked to a Stoat server. Run /migrate or link the server first.", ephemeral: true });
+    return;
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+
+  // Validate Stoat role exists on the linked server
+  try {
+    const server = await stoatClient.getServer(serverLink.stoat_server_id);
+    if (!server.roles || !server.roles[stoatRoleId]) {
+      await interaction.editReply({ content: `Stoat role ID \`${stoatRoleId}\` not found on linked Stoat server ${serverLink.stoat_server_id}.` });
+      return;
+    }
+  } catch (err) {
+    await interaction.editReply({ content: `Failed to validate Stoat server roles: ${err instanceof Error ? err.message : String(err)}` });
+    return;
+  }
+
+  // Persist mapping
+    try {
+    store.linkRole(discordRole.id, stoatRoleId, guildId);
+    await interaction.editReply({ content: `Linked Discord role **${discordRole.name}** → Stoat role \`${stoatRoleId}\`.` });
+  } catch (err) {
+    await interaction.editReply({ content: `Failed to store role link: ${err instanceof Error ? err.message : String(err)}` });
+  }
 }
 
 /** /unlink-server — remove the guild↔server binding and all channel bridges */

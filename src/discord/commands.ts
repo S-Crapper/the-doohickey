@@ -89,6 +89,24 @@ export const commands: RESTPostAPIChatInputApplicationCommandsJSONBody[] = [
     .toJSON(),
 
   new SlashCommandBuilder()
+    .setName("link-role")
+    .setDescription("Link a Discord role to a Stoat role for cross-platform pings")
+    .addRoleOption((opt) =>
+      opt
+        .setName("discord_role")
+        .setDescription("The Discord role to link")
+        .setRequired(true)
+    )
+    .addStringOption((opt) =>
+      opt
+        .setName("stoat_role_id")
+        .setDescription("The Stoat role ID (ULID) to link to")
+        .setRequired(true)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
+    .toJSON(),
+
+  new SlashCommandBuilder()
     .setName("unlink")
     .setDescription("Unlink this Discord channel from its Stoat bridge")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
