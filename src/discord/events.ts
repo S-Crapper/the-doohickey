@@ -92,7 +92,8 @@ export function registerDiscordEvents(
   // --- Message bridging (Discord → Stoat) ---
   client.on(Events.MessageCreate, async (message: DiscordMessage) => {
     // Ignore bots and system messages to prevent loops
-    if (message.author.bot || message.system) return;
+    // Also ignore webhook messages (these are messages we post via webhook)
+    if (message.author.bot || message.system || message.webhookId) return;
 
     const link = store.getChannelByDiscordId(message.channelId);
     if (!link) return; // not a linked channel
@@ -109,7 +110,8 @@ export function registerDiscordEvents(
     // Partial messages need fetching; skip if no content change
     if (!newMessage.content) return;
     // Ignore bot edits to prevent loops
-    if (newMessage.author?.bot) return;
+    // Ignore bot edits and webhook-originated edits
+    if (newMessage.author?.bot || (newMessage as any).webhookId) return;
 
     const link = store.getChannelByDiscordId(newMessage.channelId);
     if (!link) return;
@@ -170,6 +172,10 @@ export function registerDiscordEvents(
   client.on(Events.MessageReactionAdd, async (reaction, user) => {
     if (user.bot) return;
 
+    // Ignore reactions on webhook messages (messages we posted via webhook)
+    const reactedMsg = reaction.message as any;
+    if (reactedMsg?.webhookId) return;
+
     const link = store.getChannelByDiscordId(reaction.message.channelId);
     if (!link) return;
 
@@ -187,6 +193,8 @@ export function registerDiscordEvents(
 
   client.on(Events.MessageReactionRemove, async (reaction, user) => {
     if (user.bot) return;
+    const reactedMsg = reaction.message as any;
+    if (reactedMsg?.webhookId) return;
 
     const link = store.getChannelByDiscordId(reaction.message.channelId);
     if (!link) return;
