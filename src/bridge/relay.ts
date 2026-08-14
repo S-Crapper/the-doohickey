@@ -259,6 +259,9 @@ export async function relayDiscordToStoat(
     sendOpts.attachments = autumnIds;
   }
 
+  // Sanitize any leftover numeric Discord user mentions to avoid unknown native pings on Stoat
+  content = content.replace(/<@!?(\d+)>/g, "@discord-user");
+
   const sent = await stoatClient.sendMessage(stoatChannelId, content || " ", sendOpts);
 
   // Mark as bridged so we don't echo it back

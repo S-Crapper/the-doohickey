@@ -89,6 +89,9 @@ async function recoverChannelGap(
           if (!content) continue;
 
           try {
+            // Sanitize any leftover numeric Discord user mentions to avoid unknown native pings on Stoat
+            content = content.replace(/<@!?(\d+)>/g, "@discord-user");
+
             const sent = await stoatClient.sendMessage(link.stoat_channel_id, content, {
               masquerade: {
                 name: `${msg.author.displayName || msg.author.username} [delayed]`,
