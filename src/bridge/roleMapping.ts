@@ -13,9 +13,12 @@ export function mapDiscordRoleMentionsToStoat(
   if (!content) return content;
   return content.replace(/<@&(\d+)>/g, (_m, discordRoleId: string) => {
     const mapped = store.getRoleByDiscordId(discordRoleId);
+    if (process.env["STOATCORD_DEBUG"]) {
+      console.log(`[bridge][DEBUG] mapDiscordRoleMentionsToStoat: discordRoleId=${discordRoleId} mapped=${JSON.stringify(mapped)}`);
+    }
     if (mapped && (!discordGuildId || mapped.server_link_guild_id === discordGuildId)) {
-      // Stoat/Revolt role mentions use ULID form: <@ULID>
-      return `<@${mapped.stoat_role_id}>`;
+      // Stoat role mentions use the percent marker: <%ULID>
+      return `<%${mapped.stoat_role_id}>`;
     }
     return "@discord-role";
   });
