@@ -301,6 +301,18 @@ export function setupStoatToDiscordRelay(
 
     content = revoltToDiscord(content);
 
+    // If Stoat embeds contain direct Discord CDN URLs (cdn.discordapp.com or media.discordapp.net),
+    // append them to the content so Discord will unfurl them as images (preserves GIF animation).
+    if (event.embeds) {
+      for (const e of event.embeds) {
+        const url = e.url ?? e.icon_url ?? e.description?.match(/https?:\/\/\S+/)?.[0];
+        if (!url) continue;
+        if (url.includes("cdn.discordapp.com") || url.includes("media.discordapp.net")) {
+          if (!content.includes(url)) content += `\n${url}`;
+        }
+      }
+    }
+
     // Handle reply chain: if Stoat message replies to another, prepend a quote
     // (Webhook messages can't use Discord's message_reference natively)
     if (event.replies && event.replies.length > 0) {
