@@ -15,6 +15,8 @@ import type {
   SendMessageRequest,
   User,
 } from "../stoat/types.ts";
+import { writeFile, readFile, unlink } from "node:fs/promises";
+import { spawn } from "child_process";
 import {
   discordToRevolt,
   revoltToDiscord,
@@ -377,46 +379,118 @@ export function setupStoatToDiscordRelay(
 
     // Re-host Stoat attachments to Discord via webhook multipart
     const webhookFiles: Array<{ data: Uint8Array; name: string }> = [];
-    if (event.attachments) {
-      for (const att of event.attachments) {
-          const attUrl = `${stoatCdnUrl}/attachments/${att._id}/${att.filename}`;
 
-          // Prefer URL unfurl for GIFs (and known gifbox files) so Discord
-          // will render them as images rather than a video player. If the
-          // Stoat attachment filename ends with .gif or mentions "gifbox",
-          // append the URL and skip multipart upload.
-          const nameLower = (att.filename || "").toLowerCase();
-          const contentType = (att.content_type || (att.metadata && (att.metadata as any).type) || "").toLowerCase();
-          const looksLikeGif =
-            nameLower.endsWith(".gif") ||
-            nameLower.endsWith(".webp") ||
-            nameLower.includes("gifbox") ||
-            contentType.startsWith("image/") ||
-            contentType.includes("gif") ||
-            contentType.includes("webp");
-          if (looksLikeGif) {
-            if (process.env["STOATCORD_DEBUG"]) console.log("[bridge][DEBUG] treating as GIF-url:", att._id, att.filename, contentType);
-            content += `\n${attUrl}`;
-            continue;
-          }
-
-          try {
-            const res = await fetch(attUrl);
-            if (res.ok) {
-              const buffer = new Uint8Array(await res.arrayBuffer());
-              // Discord webhook max 25MB per file (webhooks allow up to 25MB)
-              if (buffer.length <= 25 * 1024 * 1024) {
-                if (process.env["STOATCORD_DEBUG"]) console.log("[bridge][DEBUG] attaching file to webhook:", att._id, att.filename, buffer.length);
-                webhookFiles.push({ data: buffer, name: att.filename });
+    // Helper: transcode MP4 buffer to animated WebP using ffmpeg (writes temp files)
+    async function convertMp4ToWebp(buf: Uint8Array, base: string): Promise<Uint8Array | null> {
+      const inPath = `/tmp/${base}.mp4`;
+      const outPath = `/tmp/${base}.webp`;
+      try {
+        await writeFile(inPath, Buffer.from(buf));
+        await new Promise<void>((resolve, reject) => {
+          const proc = spawn("ffmpeg", [
+            "-y",
+            "-i",
+            inPath,
+            "-vcodec",
+            "libwebp",
+            "-lossless",
+            "0",
+            "-q:v",
+            "50",
+            "-loop",
+            "0",
+            "-preset",
+            "default",
+            "-an",
+            "-vsync",
+            "0",
+            outPath,
+          ], { stdio: ["ignore", "ignore", "ignore"] });
+          proc.on("close", (code) => {
+            if (code === 0) resolve(); else reject(new Error(`ffmpeg exit ${code}`));
+          });
+        });
+        const outBuf = await readFile(outPath);
+        return new Uint8Array(outBuf);
+      } catch (err) {
+        console.warn("[bridge] ffmpeg conversion failed:", err);
+        return null;
+      } finally {
+        try { await unlink(inPath); } catch {}
+      // (handled above with conversion / URL logic)
+              const webp = await convertMp4ToWebp(buf, base);
+              if (webp && webp.length <= 25 * 1024 * 1024) {
+                webhookFiles.push({ data: webp, name: (att.filename || base).replace(/\.mp4$/i, ".webp") });
                 continue;
               }
             }
           } catch (err) {
-            console.warn("[bridge] Stoat attachment re-host failed:", err);
+            console.warn("[bridge] Discord CDN transcode failed:", err);
           }
-          // Fallback to URL if download/size fails
+          // If conversion failed, fall back to URL so Discord may unfurl it
           content += `\n${attUrl}`;
+          continue;
         }
+
+        // Prefer URL unfurl for GIF-like images
+        const looksLikeGif =
+          nameLower.endsWith(".gif") ||
+          nameLower.endsWith(".webp") ||
+          nameLower.includes("gifbox") ||
+          contentType.startsWith("image/") ||
+          contentType.includes("gif") ||
+          contentType.includes("webp");
+        if (looksLikeGif) {
+          if (process.env["STOATCORD_DEBUG"]) console.log("[bridge][DEBUG] treating as GIF-url:", att._id, att.filename, contentType);
+          content += `\n${attUrl}`;
+          continue;
+        }
+
+        try {
+          const res = await fetch(attUrl);
+          if (res.ok) {
+            const buffer = new Uint8Array(await res.arrayBuffer());
+            // Discord webhook max 25MB per file (webhooks allow up to 25MB)
+            if (buffer.length <= 25 * 1024 * 1024) {
+              if (process.env["STOATCORD_DEBUG"]) console.log("[bridge][DEBUG] attaching file to webhook:", att._id, att.filename, buffer.length);
+              webhookFiles.push({ data: buffer, name: att.filename });
+              continue;
+            }
+          }
+        } catch (err) {
+          console.warn("[bridge] Stoat attachment re-host failed:", err);
+        }
+        // Fallback to URL if download/size fails
+        content += `\n${attUrl}`;
+      }
+    }
+
+    // Detect Discord CDN MP4 URLs in the content and try to convert them
+    // to animated WebP and attach to the webhook so Discord shows them
+    // as images instead of video players.
+    try {
+      const urlRe = /https?:\/\/\S+/g;
+      const matches = Array.from((content || "").matchAll(urlRe)).map(m => m[0]);
+      for (const url of matches) {
+        if (!(url.includes("cdn.discordapp.com") || url.includes("media.discordapp.net"))) continue;
+        if (!url.toLowerCase().includes(".mp4")) continue;
+        try {
+          const res = await fetch(url);
+          if (!res.ok) continue;
+          const buf = new Uint8Array(await res.arrayBuffer());
+          const base = `stoat-url-${Math.random().toString(36).slice(2,9)}`;
+          const webp = await convertMp4ToWebp(buf, base);
+          if (webp && webp.length <= 25 * 1024 * 1024) {
+            webhookFiles.push({ data: webp, name: `${base}.webp` });
+            // remove URL from content so Discord will show the attachment instead
+            content = content.replace(url, "");
+          }
+        } catch (err) {
+          if (process.env["STOATCORD_DEBUG"]) console.warn("[bridge][DEBUG] failed to transcode URL", url, err);
+        }
+      }
+    } catch (err) {
+      /* ignore */
     }
 
     content = truncateForDiscord(content.trim());

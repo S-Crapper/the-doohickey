@@ -5,6 +5,9 @@ WORKDIR /app
 COPY package.json ./
 RUN bun install --production
 
+# Install ffmpeg for MP4 → animated WebP/GIF conversion
+RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
+
 COPY src/ ./src/
 COPY tsconfig.json ./
 
