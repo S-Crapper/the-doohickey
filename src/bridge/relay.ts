@@ -360,8 +360,14 @@ export function setupStoatToDiscordRelay(
           // Stoat attachment filename ends with .gif or mentions "gifbox",
           // append the URL and skip multipart upload.
           const nameLower = (att.filename || "").toLowerCase();
-          const contentType = att.content_type || (att.metadata && (att.metadata as any).type) || "";
-          const looksLikeGif = nameLower.endsWith(".gif") || nameLower.includes("gifbox") || contentType.includes("gif") || contentType.includes("webp") && nameLower.endsWith(".webp");
+          const contentType = (att.content_type || (att.metadata && (att.metadata as any).type) || "").toLowerCase();
+          const looksLikeGif =
+            nameLower.endsWith(".gif") ||
+            nameLower.endsWith(".webp") ||
+            nameLower.includes("gifbox") ||
+            contentType.startsWith("image/") ||
+            contentType.includes("gif") ||
+            contentType.includes("webp");
           if (looksLikeGif) {
             content += `\n${attUrl}`;
             continue;
