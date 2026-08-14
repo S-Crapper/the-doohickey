@@ -465,11 +465,15 @@ async function handleLinkRoles(
     // Build a concise reply, truncating if necessary to stay under Discord's 2000-char limit
     const header = `Linked ${linked.length} role(s).`;
     const linkedLines = linked.map((l) => `- ${l.discord} → ${l.stoatId}`);
+    const SKIP_LINKED_SHOW = 30;
+    const shownLinked = linkedLines.slice(0, SKIP_LINKED_SHOW);
+    const extraLinked = Math.max(0, linkedLines.length - shownLinked.length);
     const skippedPreview = skipped.slice(0, 10).join(", ");
     const remainingPreview = remainingStoat.slice(0, 10).join(", ");
 
     let content = header;
-    if (linkedLines.length > 0) content += `\n\n${linkedLines.join("\n")}`;
+    if (shownLinked.length > 0) content += `\n\n${shownLinked.join("\n")}`;
+    if (extraLinked > 0) content += `\n...and ${extraLinked} more linked roles`;
     if (skipped.length > 0) content += `\n\n${skipped.length} Discord role(s) had no Stoat match: ${skippedPreview}`;
     if (remainingStoat.length > 0) content += `\n\n${remainingStoat.length} Stoat role(s) not matched: ${remainingPreview}`;
 
