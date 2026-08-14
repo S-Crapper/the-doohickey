@@ -57,6 +57,10 @@ export function registerDiscordEvents(
           await handleStatus(interaction, store);
           break;
 
+        case "link-server":
+          await handleLinkServer(interaction, store, stoatClient);
+          break;
+
         case "archive":
           await handleArchive(interaction, store, stoatClient, client);
           break;
@@ -380,6 +384,46 @@ async function handleLinkRole(
     await interaction.editReply({ content: `Linked Discord role **${discordRole.name}** → Stoat role \`${stoatRoleId}\`.` });
   } catch (err) {
     await interaction.editReply({ content: `Failed to store role link: ${err instanceof Error ? err.message : String(err)}` });
+  }
+}
+
+async function handleLinkServer(
+  interaction: ChatInputCommandInteraction,
+  store: Store,
+  stoatClient: StoatClient
+): Promise<void> {
+  const guildId = interaction.guildId;
+  if (!guildId) {
+    await interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
+    return;
+  }
+
+  const stoatServerId = interaction.options.getString("stoat_server_id", true);
+
+  await interaction.deferReply({ ephemeral: true });
+
+  // Validate Stoat server exists
+  try {
+    const server = await stoatClient.getServer(stoatServerId);
+    if (!server) {
+      await interaction.editReply({ content: `Stoat server \`${stoatServerId}\` not found.` });
+      return;
+    }
+  } catch (err) {
+    await interaction.editReply({ content: `Failed to validate Stoat server: ${err instanceof Error ? err.message : String(err)}` });
+    return;
+  }
+
+  try {
+    const existing = store.getServerLink(guildId);
+    const token = store.linkServer(guildId, stoatServerId, "manual", interaction.user.id);
+    if (existing) {
+      await interaction.editReply({ content: `Re-linked this guild to Stoat server \`${stoatServerId}\`. API token: ${token}` });
+    } else {
+      await interaction.editReply({ content: `Linked this guild to Stoat server \`${stoatServerId}\`. API token: ${token}` });
+    }
+  } catch (err) {
+    await interaction.editReply({ content: `Failed to store server link: ${err instanceof Error ? err.message : String(err)}` });
   }
 }
 

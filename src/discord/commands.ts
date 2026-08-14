@@ -142,6 +142,18 @@ export const commands: RESTPostAPIChatInputApplicationCommandsJSONBody[] = [
     .toJSON(),
 
   new SlashCommandBuilder()
+    .setName("link-server")
+    .setDescription("Link this Discord guild to a Stoat server")
+    .addStringOption((opt) =>
+      opt
+        .setName("stoat_server_id")
+        .setDescription("The Stoat server ID (ULID) to link to")
+        .setRequired(true)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .toJSON(),
+
+  new SlashCommandBuilder()
     .setName("archive")
     .setDescription("Discord message history archive/import system")
     .addSubcommand((sub) =>
