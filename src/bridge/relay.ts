@@ -353,23 +353,36 @@ export function setupStoatToDiscordRelay(
     const webhookFiles: Array<{ data: Uint8Array; name: string }> = [];
     if (event.attachments) {
       for (const att of event.attachments) {
-        const attUrl = `${stoatCdnUrl}/attachments/${att._id}/${att.filename}`;
-        try {
-          const res = await fetch(attUrl);
-          if (res.ok) {
-            const buffer = new Uint8Array(await res.arrayBuffer());
-            // Discord webhook max 25MB per file (8MB for free bots, but webhooks allow 25MB)
-            if (buffer.length <= 25 * 1024 * 1024) {
-              webhookFiles.push({ data: buffer, name: att.filename });
-              continue;
-            }
+          const attUrl = `${stoatCdnUrl}/attachments/${att._id}/${att.filename}`;
+
+          // Prefer URL unfurl for GIFs (and known gifbox files) so Discord
+          // will render them as images rather than a video player. If the
+          // Stoat attachment filename ends with .gif or mentions "gifbox",
+          // append the URL and skip multipart upload.
+          const nameLower = (att.filename || "").toLowerCase();
+          const contentType = att.content_type || (att.metadata && (att.metadata as any).type) || "";
+          const looksLikeGif = nameLower.endsWith(".gif") || nameLower.includes("gifbox") || contentType.includes("gif") || contentType.includes("webp") && nameLower.endsWith(".webp");
+          if (looksLikeGif) {
+            content += `\n${attUrl}`;
+            continue;
           }
-        } catch (err) {
-          console.warn("[bridge] Stoat attachment re-host failed:", err);
+
+          try {
+            const res = await fetch(attUrl);
+            if (res.ok) {
+              const buffer = new Uint8Array(await res.arrayBuffer());
+              // Discord webhook max 25MB per file (webhooks allow up to 25MB)
+              if (buffer.length <= 25 * 1024 * 1024) {
+                webhookFiles.push({ data: buffer, name: att.filename });
+                continue;
+              }
+            }
+          } catch (err) {
+            console.warn("[bridge] Stoat attachment re-host failed:", err);
+          }
+          // Fallback to URL if download/size fails
+          content += `\n${attUrl}`;
         }
-        // Fallback to URL if download/size fails
-        content += `\n${attUrl}`;
-      }
     }
 
     content = truncateForDiscord(content.trim());
