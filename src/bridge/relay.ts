@@ -301,6 +301,20 @@ export function setupStoatToDiscordRelay(
 
     content = revoltToDiscord(content);
 
+    // Optional debug: log attachments/embeds for inspection when needed
+    if (process.env["STOATCORD_DEBUG"]) {
+      try {
+        console.log("[bridge][DEBUG] Stoat message:", JSON.stringify({
+          id: event._id,
+          channel: event.channel,
+          attachments: event.attachments,
+          embeds: event.embeds,
+        }, null, 2));
+      } catch (err) {
+        console.log("[bridge][DEBUG] Stoat message (non-serializable)", err);
+      }
+    }
+
     // If Stoat embeds contain direct Discord CDN URLs (cdn.discordapp.com or media.discordapp.net),
     // append them to the content so Discord will unfurl them as images (preserves GIF animation).
     if (event.embeds) {
@@ -381,6 +395,7 @@ export function setupStoatToDiscordRelay(
             contentType.includes("gif") ||
             contentType.includes("webp");
           if (looksLikeGif) {
+            if (process.env["STOATCORD_DEBUG"]) console.log("[bridge][DEBUG] treating as GIF-url:", att._id, att.filename, contentType);
             content += `\n${attUrl}`;
             continue;
           }
@@ -391,6 +406,7 @@ export function setupStoatToDiscordRelay(
               const buffer = new Uint8Array(await res.arrayBuffer());
               // Discord webhook max 25MB per file (webhooks allow up to 25MB)
               if (buffer.length <= 25 * 1024 * 1024) {
+                if (process.env["STOATCORD_DEBUG"]) console.log("[bridge][DEBUG] attaching file to webhook:", att._id, att.filename, buffer.length);
                 webhookFiles.push({ data: buffer, name: att.filename });
                 continue;
               }
