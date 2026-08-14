@@ -82,6 +82,15 @@ export class StoatClient {
     return this.request<Member>("GET", `/servers/${serverId}/members/${userId}`);
   }
 
+  /** Edit a member's roles on a server. Body: { roles: string[] } */
+  async editMemberRoles(serverId: string, userId: string, roles: string[]): Promise<Member> {
+    return this.request<Member>(
+      "PATCH",
+      `/servers/${serverId}/members/${userId}`,
+      { roles }
+    );
+  }
+
   // --- Channels ---
 
   async createChannel(

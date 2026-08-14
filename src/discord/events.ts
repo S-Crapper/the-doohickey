@@ -75,6 +75,9 @@ export function registerDiscordEvents(
         case "link-roles":
           await handleLinkRoles(interaction, store, stoatClient, client);
           break;
+        case "transfer-roles":
+          await handleTransferRoles(interaction, store, stoatClient, client);
+          break;
       }
     } catch (err) {
       console.error(
@@ -485,6 +488,85 @@ async function handleLinkRoles(
     await interaction.editReply({ content });
   } catch (err) {
     await interaction.editReply({ content: `Failed to auto-link roles: ${err instanceof Error ? err.message : String(err)}` });
+  }
+}
+
+/**
+ * /transfer-roles discord_user:<user> stoat_user_id:<id> [dry_run]
+ * Map the Discord user's roles to Stoat role IDs using stored role links
+ * and assign them to the given Stoat user on the linked Stoat server.
+ */
+async function handleTransferRoles(
+  interaction: ChatInputCommandInteraction,
+  store: Store,
+  stoatClient: StoatClient,
+  client: Client
+): Promise<void> {
+  const guildId = interaction.guildId;
+  if (!guildId) {
+    await interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
+    return;
+  }
+
+  const serverLink = store.getServerLink(guildId);
+  if (!serverLink) {
+    await interaction.reply({ content: "This Discord guild is not linked to a Stoat server. Run /migrate or link the server first.", ephemeral: true });
+    return;
+  }
+
+  const discordUser = interaction.options.getUser("discord_user", true);
+  const stoatUserId = interaction.options.getString("stoat_user_id", true);
+  const dryRun = interaction.options.getBoolean("dry_run") ?? false;
+
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    // Build mapping discordRoleId -> stoatRoleId for this guild
+    const roleLinks = store.getRolesForGuild(guildId);
+    const map: Record<string, string> = {};
+    for (const r of roleLinks) map[r.discord_role_id] = r.stoat_role_id;
+
+    // Resolve Discord member roles
+    const guild = client.guilds.cache.get(guildId) ?? interaction.guild;
+    if (!guild) {
+      await interaction.editReply({ content: "Failed to access guild." });
+      return;
+    }
+    const member = await guild.members.fetch(discordUser.id).catch(() => null);
+    if (!member) {
+      await interaction.editReply({ content: `Discord user ${discordUser.tag} not found in this guild.` });
+      return;
+    }
+
+    const discordRoleIds = Array.from(member.roles.cache.keys()).filter(id => id !== guild.id);
+    const matchedStoatRoleIds: string[] = [];
+    const unmatched: string[] = [];
+
+    for (const dr of discordRoleIds) {
+      const stoatId = map[dr];
+      if (stoatId) matchedStoatRoleIds.push(stoatId);
+      else unmatched.push(dr);
+    }
+
+    if (matchedStoatRoleIds.length === 0) {
+      await interaction.editReply({ content: `No linked Stoat roles found for ${discordUser.tag}.` });
+      return;
+    }
+
+    if (dryRun) {
+      await interaction.editReply({ content: `Dry run — would assign ${matchedStoatRoleIds.length} Stoat role(s) to ${stoatUserId}: ${matchedStoatRoleIds.join(", ")}` });
+      return;
+    }
+
+    // Attempt to set member roles on Stoat
+    try {
+      await stoatClient.editMemberRoles(serverLink.stoat_server_id, stoatUserId, matchedStoatRoleIds);
+      await interaction.editReply({ content: `Assigned ${matchedStoatRoleIds.length} Stoat role(s) to ${stoatUserId}.` });
+    } catch (err) {
+      await interaction.editReply({ content: `Failed to assign roles on Stoat: ${err instanceof Error ? err.message : String(err)}` });
+    }
+  } catch (err) {
+    await interaction.editReply({ content: `Error: ${err instanceof Error ? err.message : String(err)}` });
   }
 }
 

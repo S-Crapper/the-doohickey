@@ -113,6 +113,30 @@ export const commands: RESTPostAPIChatInputApplicationCommandsJSONBody[] = [
     .toJSON(),
 
   new SlashCommandBuilder()
+    .setName("transfer-roles")
+    .setDescription("Transfer a Discord user's roles to a Stoat user on the linked server")
+    .addUserOption((opt) =>
+      opt
+        .setName("discord_user")
+        .setDescription("The Discord user whose roles to transfer")
+        .setRequired(true)
+    )
+    .addStringOption((opt) =>
+      opt
+        .setName("stoat_user_id")
+        .setDescription("The Stoat user ID to assign roles to")
+        .setRequired(true)
+    )
+    .addBooleanOption((opt) =>
+      opt
+        .setName("dry_run")
+        .setDescription("Preview what would be transferred without making changes")
+        .setRequired(false)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
+    .toJSON(),
+
+  new SlashCommandBuilder()
     .setName("unlink")
     .setDescription("Unlink this Discord channel from its Stoat bridge")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
