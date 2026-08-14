@@ -77,6 +77,18 @@ async function recoverChannelGap(
 
         for (const msg of toRelay) {
           let content = msg.content || "";
+
+          // Replace Discord user mentions with plain display names to avoid unknown native pings
+          if (content && msg.mentions) {
+            content = content.replace(/<@!?(\d+)>/g, (_m, id) => {
+              const member = msg.mentions.members?.get(id);
+              const user = msg.mentions.users.get(id);
+              if (member && (member as any).displayName) return `@${(member as any).displayName}`;
+              if (user) return `@${user.username}`;
+              return "@discord-user";
+            });
+          }
+
           if (content && msg.guildId) {
             content = mapDiscordRoleMentionsToStoat(content, store, msg.guildId);
           }

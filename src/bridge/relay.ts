@@ -158,6 +158,17 @@ export async function relayDiscordToStoat(
   // Build content
   let content = message.content ? message.content : "";
 
+  // Replace Discord user mentions with plain display names to avoid unknown native pings
+  if (content && message.mentions) {
+    content = content.replace(/<@!?(\d+)>/g, (_m, id) => {
+      const member = message.mentions.members?.get(id);
+      const user = message.mentions.users.get(id);
+      if (member && member.displayName) return `@${member.displayName}`;
+      if (user) return `@${user.username}`;
+      return "@discord-user";
+    });
+  }
+
   // Map any Discord role mentions to Stoat role mentions if we have mappings
   if (content && message.guildId) {
     content = mapDiscordRoleMentionsToStoat(content, store, message.guildId);
