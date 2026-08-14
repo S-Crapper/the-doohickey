@@ -305,21 +305,31 @@ export async function relayDiscordToStoat(
     console.log("[bridge][DEBUG] Discord→Stoat final content:", content);
   }
 
-  const sent = await stoatClient.sendMessage(stoatChannelId, content || " ", sendOpts);
+  const sent = await stoatClient.sendMessage(
+    stoatChannelId,
+    content || " ",
+    sendOpts
+  );
+
+  // Stoat API may return either `_id` or `id` for the created message depending on server
+  const stoatMsgId = (sent as any)?._id ?? (sent as any)?.id;
+  if (process.env["STOATCORD_DEBUG"]) console.log("[bridge][DEBUG] Discord→Stoat send result:", sent);
 
   // Mark as bridged so we don't echo it back
-  if (sent._id) {
-    markBridged(sent._id);
+  if (stoatMsgId) {
+    markBridged(stoatMsgId);
     // Store the ID pair for edit/delete/reaction sync
     store.storeBridgeMessage(
       message.id,
-      sent._id,
+      stoatMsgId,
       message.channelId,
       stoatChannelId,
       "d2s"
     );
     // Track for outage recovery
-    store.updateLastBridged(message.channelId, message.id, sent._id);
+    store.updateLastBridged(message.channelId, message.id, stoatMsgId);
+  } else {
+    if (process.env["STOATCORD_DEBUG"]) console.warn("[bridge][WARN] Stoat sendMessage returned no id:", sent);
   }
 }
 
