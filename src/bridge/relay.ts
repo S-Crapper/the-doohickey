@@ -159,14 +159,31 @@ export async function relayDiscordToStoat(
   let content = message.content ? message.content : "";
 
   // Replace Discord user mentions with plain display names to avoid unknown native pings
-  if (content && message.mentions) {
-    content = content.replace(/<@!?(\d+)>/g, (_m, id) => {
-      const member = message.mentions.members?.get(id);
-      const user = message.mentions.users.get(id);
-      if (member && member.displayName) return `@${member.displayName}`;
-      if (user) return `@${user.username}`;
-      return "@discord-user";
-    });
+  if (content) {
+    const mentionIds = Array.from(new Set(Array.from(content.matchAll(/<@!?(\d+)>/g)).map((m) => m[1])));
+    for (const id of mentionIds) {
+      let display = "@discord-user";
+      try {
+        // Prefer guild member display name when available
+        if (message.guild) {
+          try {
+            const member = await message.guild.members.fetch(id).catch(() => null);
+            if (member && (member as any).displayName) {
+              display = `@${(member as any).displayName}`;
+              content = content.replace(new RegExp(`<@!?${id}>`, "g"), display);
+              continue;
+            }
+          } catch {}
+        }
+
+        // Fallback to cached mention or fetch user
+        const user = message.mentions.users.get(id) ?? await message.client.users.fetch(id).catch(() => null);
+        if (user) display = `@${user.username}`;
+      } catch {
+        // keep default
+      }
+      content = content.replace(new RegExp(`<@!?${id}>`, "g"), display);
+    }
   }
 
   // Map any Discord role mentions to Stoat role mentions if we have mappings
