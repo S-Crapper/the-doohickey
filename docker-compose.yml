@@ -2,7 +2,7 @@ services:
   stoatcord-bot:
     image: stoatcord-bot:latest
     container_name: stoatcord-bot
-    # Add these two lines right here:
+    # Add these two linejs right here:
     build:
       context: .
     restart: unless-stopped
