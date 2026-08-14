@@ -462,13 +462,23 @@ async function handleLinkRoles(
 
     const remainingStoat = Object.entries(stoatByName).map(([id, _]) => id);
 
-    const parts: string[] = [];
-    parts.push(`Linked ${linked.length} role(s).`);
-    if (linked.length > 0) parts.push(linked.map((l) => `- ${l.discord} → ${l.stoatId}`).join("\n"));
-    if (skipped.length > 0) parts.push(`${skipped.length} Discord role(s) had no Stoat match: ${skipped.slice(0, 10).join(", ")}`);
-    if (remainingStoat.length > 0) parts.push(`${remainingStoat.length} Stoat role(s) not matched: ${remainingStoat.slice(0, 10).join(", ")}`);
+    // Build a concise reply, truncating if necessary to stay under Discord's 2000-char limit
+    const header = `Linked ${linked.length} role(s).`;
+    const linkedLines = linked.map((l) => `- ${l.discord} → ${l.stoatId}`);
+    const skippedPreview = skipped.slice(0, 10).join(", ");
+    const remainingPreview = remainingStoat.slice(0, 10).join(", ");
 
-    await interaction.editReply({ content: parts.join("\n\n") });
+    let content = header;
+    if (linkedLines.length > 0) content += `\n\n${linkedLines.join("\n")}`;
+    if (skipped.length > 0) content += `\n\n${skipped.length} Discord role(s) had no Stoat match: ${skippedPreview}`;
+    if (remainingStoat.length > 0) content += `\n\n${remainingStoat.length} Stoat role(s) not matched: ${remainingPreview}`;
+
+    // Truncate safely to 1990 chars and indicate truncation
+    if (content.length > 1990) {
+      content = content.slice(0, 1990) + "\n\n...(truncated)";
+    }
+
+    await interaction.editReply({ content });
   } catch (err) {
     await interaction.editReply({ content: `Failed to auto-link roles: ${err instanceof Error ? err.message : String(err)}` });
   }
