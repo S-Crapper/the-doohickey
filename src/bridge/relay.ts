@@ -378,6 +378,8 @@ export function setupStoatToDiscordRelay(
     }
 
     // Re-host Stoat attachments to Discord via webhook multipart
+    if (event.attachments) {
+      for (const att of event.attachments) {
     const webhookFiles: Array<{ data: Uint8Array; name: string }> = [];
 
     // Helper: transcode MP4 buffer to animated WebP using ffmpeg (writes temp files)
@@ -417,7 +419,11 @@ export function setupStoatToDiscordRelay(
         return null;
       } finally {
         try { await unlink(inPath); } catch {}
-      // (handled above with conversion / URL logic)
+        try { await unlink(outPath); } catch {}
+      }
+    }
+
+    // (handled above with conversion / URL logic)
               const webp = await convertMp4ToWebp(buf, base);
               if (webp && webp.length <= 25 * 1024 * 1024) {
                 webhookFiles.push({ data: webp, name: (att.filename || base).replace(/\.mp4$/i, ".webp") });
