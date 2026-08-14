@@ -464,20 +464,27 @@ async function handleStatus(
         value: serverLink
           ? `Discord \`${guildId}\` → Stoat \`${serverLink.stoat_server_id}\``
           : "Not linked",
-      },
-      {
-        name: `Bridged Channels (${guildLinks.length})`,
-        value:
-          guildLinks.length > 0
-            ? guildLinks
-                .map(
-                  (l) =>
-                    `<#${l.discord_channel_id}> → \`${l.stoat_channel_id}\``
-                )
-                .join("\n")
-            : "None",
       }
-    )
+    );
+
+  // Build bridged channels list separately and ensure it fits Discord's 1024 char limit
+  let bridgedValue: string;
+  if (guildLinks.length === 0) {
+    bridgedValue = "None";
+  } else {
+    const lines = guildLinks.map((l) => `<#${l.discord_channel_id}> → \`${l.stoat_channel_id}\``);
+    const joined = lines.join("\n");
+    if (joined.length <= 1024) {
+      bridgedValue = joined;
+    } else {
+      // Truncate gracefully to fit within the embed field limit
+      const truncated = joined.slice(0, 1000).replace(/\n[^\n]*$/, "");
+      bridgedValue = `${truncated}\n… (truncated)`;
+    }
+  }
+
+  // Add bridged channels as its own field
+  embed.addFields({ name: `Bridged Channels (${guildLinks.length})`, value: bridgedValue });
     .setTimestamp();
 
   await interaction.reply({ embeds: [embed] });
