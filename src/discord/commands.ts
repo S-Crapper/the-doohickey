@@ -150,7 +150,7 @@ export const commands: RESTPostAPIChatInputApplicationCommandsJSONBody[] = [
         .setDescription("The Stoat server ID (ULID) to link to")
         .setRequired(true)
     )
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
     .toJSON(),
 
   new SlashCommandBuilder()
