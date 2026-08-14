@@ -264,10 +264,21 @@ export async function relayDiscordToStoat(
 
   // Resolve reply chain: if this message replies to another, look up the Stoat counterpart
   const sendOpts: Partial<Omit<SendMessageRequest, "content">> = {
-    masquerade: {
-      name: message.author.displayName || message.author.username,
-      avatar: avatarUrl,
-    },
+    // We'll normally masquerade as the Discord user, but if the content
+    // contains Stoat role mention tokens, send without masquerade so Stoat
+    // can parse and resolve the role mention correctly.
+    // (Some Stoat servers don't resolve role mentions inside masqueraded messages.)
+    ...(function() {
+      const maybe = {} as Partial<SendMessageRequest>;
+      const hasStoatRoleMention = /<(?:@|@&|%)[A-Z0-9]{26}>/.test(content);
+      if (!hasStoatRoleMention) {
+        (maybe as any).masquerade = {
+          name: message.author.displayName || message.author.username,
+          avatar: avatarUrl,
+        } as any;
+      }
+      return maybe;
+    })(),
   };
 
   if (message.reference?.messageId) {
