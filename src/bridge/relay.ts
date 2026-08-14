@@ -185,8 +185,9 @@ export async function relayDiscordToStoat(
   // Re-host Klipy embeds (Discord cached static.klipy.com media) as attachments
   for (const embed of message.embeds ?? []) {
     if (!embed.url?.includes("klipy.com")) continue;
-    // Prefer video (mp4) over thumbnail (webp)
-    const mediaUrl = (embed.video?.url ?? embed.thumbnail?.url) as string | null;
+    // Prefer thumbnail (often animated WebP) over video (mp4) so Stoat
+    // treats it as an image rather than a video player.
+    const mediaUrl = (embed.thumbnail?.url ?? embed.video?.url) as string | null;
     if (!mediaUrl) continue;
     try {
       const res = await fetch(mediaUrl);
