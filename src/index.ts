@@ -41,6 +41,7 @@ async function main(): Promise<void> {
   // Initialize SQLite database (bun:sqlite)
   const store = new Store(config.dbPath);
   console.log("[db] Database initialized");
+  console.log(`[db] Using database path: ${config.dbPath}`);
 
   // Initialize Stoat REST client
   const stoatClient = new StoatClient(config.stoatToken, config.stoatApiBase, config.stoatAutumnUrl);

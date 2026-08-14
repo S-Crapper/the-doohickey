@@ -17,8 +17,8 @@ export function mapDiscordRoleMentionsToStoat(
       console.log(`[bridge][DEBUG] mapDiscordRoleMentionsToStoat: discordRoleId=${discordRoleId} mapped=${JSON.stringify(mapped)}`);
     }
     if (mapped && (!discordGuildId || mapped.server_link_guild_id === discordGuildId)) {
-      // Stoat role mentions use the percent marker: <%ULID>
-      return `<%${mapped.stoat_role_id}>`;
+      // Stoat role mentions use ULID form: <@ULID>
+      return `<@${mapped.stoat_role_id}>`;
     }
     return "@discord-role";
   });
