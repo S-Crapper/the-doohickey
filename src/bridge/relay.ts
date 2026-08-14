@@ -378,8 +378,6 @@ export function setupStoatToDiscordRelay(
     }
 
     // Re-host Stoat attachments to Discord via webhook multipart
-    if (event.attachments) {
-      for (const att of event.attachments) {
     const webhookFiles: Array<{ data: Uint8Array; name: string }> = [];
 
     // Helper: transcode MP4 buffer to animated WebP using ffmpeg (writes temp files)
@@ -423,10 +421,24 @@ export function setupStoatToDiscordRelay(
       }
     }
 
-    // (handled above with conversion / URL logic)
+    if (event.attachments) {
+      for (const att of event.attachments) {
+        const filename = typeof att === "string" ? att : att.filename ?? att._id;
+        const attId = typeof att === "string" ? att : att._id;
+        const attUrl = `${stoatCdnUrl}/attachments/${attId}/${filename}`;
+        const nameLower = (filename || "").toLowerCase();
+        const contentType = (att.content_type || "").toLowerCase();
+
+        // If attachment is a Discord CDN MP4, try to transcode it to animated WebP
+        if ((attUrl.includes("cdn.discordapp.com") || attUrl.includes("media.discordapp.net")) && nameLower.endsWith(".mp4")) {
+          try {
+            const res = await fetch(attUrl);
+            if (res.ok) {
+              const buf = new Uint8Array(await res.arrayBuffer());
+              const base = `stoat-att-${Math.random().toString(36).slice(2,9)}`;
               const webp = await convertMp4ToWebp(buf, base);
               if (webp && webp.length <= 25 * 1024 * 1024) {
-                webhookFiles.push({ data: webp, name: (att.filename || base).replace(/\.mp4$/i, ".webp") });
+                webhookFiles.push({ data: webp, name: (filename || base).replace(/\.mp4$/i, ".webp") });
                 continue;
               }
             }
@@ -447,7 +459,7 @@ export function setupStoatToDiscordRelay(
           contentType.includes("gif") ||
           contentType.includes("webp");
         if (looksLikeGif) {
-          if (process.env["STOATCORD_DEBUG"]) console.log("[bridge][DEBUG] treating as GIF-url:", att._id, att.filename, contentType);
+          if (process.env["STOATCORD_DEBUG"]) console.log("[bridge][DEBUG] treating as GIF-url:", attId, filename, contentType);
           content += `\n${attUrl}`;
           continue;
         }
@@ -458,8 +470,8 @@ export function setupStoatToDiscordRelay(
             const buffer = new Uint8Array(await res.arrayBuffer());
             // Discord webhook max 25MB per file (webhooks allow up to 25MB)
             if (buffer.length <= 25 * 1024 * 1024) {
-              if (process.env["STOATCORD_DEBUG"]) console.log("[bridge][DEBUG] attaching file to webhook:", att._id, att.filename, buffer.length);
-              webhookFiles.push({ data: buffer, name: att.filename });
+              if (process.env["STOATCORD_DEBUG"]) console.log("[bridge][DEBUG] attaching file to webhook:", attId, filename, buffer.length);
+              webhookFiles.push({ data: buffer, name: filename });
               continue;
             }
           }
