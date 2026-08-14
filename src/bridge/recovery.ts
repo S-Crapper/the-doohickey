@@ -77,18 +77,6 @@ async function recoverChannelGap(
 
         for (const msg of toRelay) {
           let content = msg.content || "";
-
-          // Replace Discord user mentions with plain display names to avoid unknown native pings
-          if (content && msg.mentions) {
-            content = content.replace(/<@!?(\d+)>/g, (_m, id) => {
-              const member = msg.mentions.members?.get(id);
-              const user = msg.mentions.users.get(id);
-              if (member && (member as any).displayName) return `@${(member as any).displayName}`;
-              if (user) return `@${user.username}`;
-              return "@discord-user";
-            });
-          }
-
           if (content && msg.guildId) {
             content = mapDiscordRoleMentionsToStoat(content, store, msg.guildId);
           }
@@ -104,12 +92,19 @@ async function recoverChannelGap(
             // Sanitize any leftover numeric Discord user mentions to avoid unknown native pings on Stoat
             content = content.replace(/<@!?(\d+)>/g, "@discord-user");
 
-            const sent = await stoatClient.sendMessage(link.stoat_channel_id, content, {
-              masquerade: {
+            // If the content contains a Stoat role mention token (ULID form), avoid masquerading
+            // because some Stoat servers do not resolve mentions inside masqueraded messages.
+            const containsStoatRoleMention = /<(?:@&?|%)[A-Z0-9]{26}>/.test(content);
+
+            const sendOpts: Record<string, unknown> = {};
+            if (!containsStoatRoleMention) {
+              sendOpts.masquerade = {
                 name: `${msg.author.displayName || msg.author.username} [delayed]`,
                 avatar: msg.author.displayAvatarURL({ size: 256, extension: "png" }),
-              },
-            });
+              };
+            }
+
+            const sent = await stoatClient.sendMessage(link.stoat_channel_id, content, sendOpts);
 
             if (sent._id) {
               store.storeBridgeMessage(
