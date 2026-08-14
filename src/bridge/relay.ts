@@ -156,14 +156,15 @@ export async function relayDiscordToStoat(
   if (!message.content && message.attachments.size === 0) return;
 
   // Build content
-  let content = message.content
-    ? discordToRevolt(message.content)
-    : "";
+  let content = message.content ? message.content : "";
 
   // Map any Discord role mentions to Stoat role mentions if we have mappings
   if (content && message.guildId) {
     content = mapDiscordRoleMentionsToStoat(content, store, message.guildId);
   }
+
+  // Convert remaining Discord-specific syntax to Revolt-friendly form
+  if (content) content = discordToRevolt(content);
 
   // Re-host Discord attachments to Stoat Autumn CDN
   const autumnIds: string[] = [];
@@ -747,16 +748,19 @@ export async function relayDiscordEditToStoat(
   const mapping = store.getBridgeMessageByDiscordId(messageId);
   if (!mapping) return;
 
-  const content = truncateForRevolt(discordToRevolt(newContent));
-  if (!content) return;
+  let raw = newContent || "";
+  if (!raw) return;
 
-  // Map Discord role mentions to Stoat mentions when editing
-  let mappedContent = content;
+  // Map Discord role mentions to Stoat mentions when editing (before conversion)
+  let mappedContent = raw;
   try {
     mappedContent = mapDiscordRoleMentionsToStoat(mappedContent, store);
   } catch (_err) {
     // Ignore mapping errors
   }
+
+  const content = truncateForRevolt(discordToRevolt(mappedContent));
+  if (!content) return;
 
   try {
     markEdited(mapping.stoat_message_id);

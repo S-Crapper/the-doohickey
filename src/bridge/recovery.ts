@@ -76,10 +76,11 @@ async function recoverChannelGap(
           .reverse(); // oldest first
 
         for (const msg of toRelay) {
-          let content = discordToRevolt(msg.content || "");
+          let content = msg.content || "";
           if (content && msg.guildId) {
             content = mapDiscordRoleMentionsToStoat(content, store, msg.guildId);
           }
+          content = discordToRevolt(content);
           // Append attachment URLs (not re-hosting during recovery to avoid flooding Autumn)
           for (const att of msg.attachments.values()) {
             content += `\n${att.url}`;
