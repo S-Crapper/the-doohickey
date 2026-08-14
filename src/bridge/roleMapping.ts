@@ -14,8 +14,8 @@ export function mapDiscordRoleMentionsToStoat(
   return content.replace(/<@&(\d+)>/g, (_m, discordRoleId: string) => {
     const mapped = store.getRoleByDiscordId(discordRoleId);
     if (mapped && (!discordGuildId || mapped.server_link_guild_id === discordGuildId)) {
-      // Stoat/Revolt role mentions use the ampersand marker like Discord: <@&ULID>
-      return `<@&${mapped.stoat_role_id}>`;
+      // Stoat/Revolt role mentions use ULID form: <@ULID>
+      return `<@${mapped.stoat_role_id}>`;
     }
     return "@discord-role";
   });
@@ -44,12 +44,12 @@ export async function mapStoatRoleMentionsToDiscord(
     if (!guildId) return content.replace(/<@([A-Z0-9]{26})>/g, "@stoat-role");
 
     const links = store.getRolesForGuild(guildId);
-    if (!links || links.length === 0) return content.replace(/<@&([A-Z0-9]{26})>/g, "@stoat-role");
+    if (!links || links.length === 0) return content.replace(/<@([A-Z0-9]{26})>/g, "@stoat-role");
 
     const map: Record<string, string> = {};
     for (const l of links) map[l.stoat_role_id] = l.discord_role_id;
 
-    return content.replace(/<@&([A-Z0-9]{26})>/g, (m, stoatRoleId: string) => {
+    return content.replace(/<@([A-Z0-9]{26})>/g, (m, stoatRoleId: string) => {
       const discordRole = map[stoatRoleId];
       if (discordRole) return `<@&${discordRole}>`;
       return "@stoat-role";
