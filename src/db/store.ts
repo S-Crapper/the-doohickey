@@ -303,6 +303,16 @@ export class Store {
     );
   }
 
+  getRoleByStoatId(stoatRoleId: string): RoleLinkRow | null {
+    return (
+      this.db
+        .query<RoleLinkRow, [string]>(
+          "SELECT * FROM role_links WHERE stoat_role_id = ?"
+        )
+        .get(stoatRoleId) ?? null
+    );
+  }
+
   getRolesForGuild(guildId: string): RoleLinkRow[] {
     return this.db
       .query<RoleLinkRow, [string]>(

@@ -5,6 +5,7 @@ import type { StoatClient } from "../stoat/client.ts";
 import type { Store } from "../db/store.ts";
 import type { ChannelLinkRow } from "../db/schema.ts";
 import { discordToRevolt, revoltToDiscord, truncateForRevolt, truncateForDiscord } from "./format.ts";
+import { mapDiscordRoleMentionsToStoat } from "./roleMapping.ts";
 import { sendViaWebhook } from "./webhooks.ts";
 import { sleep } from "../util.ts";
 
@@ -76,6 +77,9 @@ async function recoverChannelGap(
 
         for (const msg of toRelay) {
           let content = discordToRevolt(msg.content || "");
+          if (content && msg.guildId) {
+            content = mapDiscordRoleMentionsToStoat(content, store, msg.guildId);
+          }
           // Append attachment URLs (not re-hosting during recovery to avoid flooding Autumn)
           for (const att of msg.attachments.values()) {
             content += `\n${att.url}`;

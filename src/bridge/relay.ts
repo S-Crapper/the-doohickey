@@ -24,6 +24,10 @@ import {
   truncateForDiscord,
 } from "./format.ts";
 import {
+  mapDiscordRoleMentionsToStoat,
+  mapStoatRoleMentionsToDiscord,
+} from "./roleMapping.ts";
+import {
   sendViaWebhook,
   editViaWebhook,
   deleteViaWebhook,
@@ -155,6 +159,11 @@ export async function relayDiscordToStoat(
   let content = message.content
     ? discordToRevolt(message.content)
     : "";
+
+  // Map any Discord role mentions to Stoat role mentions if we have mappings
+  if (content && message.guildId) {
+    content = mapDiscordRoleMentionsToStoat(content, store, message.guildId);
+  }
 
   // Re-host Discord attachments to Stoat Autumn CDN
   const autumnIds: string[] = [];
@@ -300,6 +309,21 @@ export function setupStoatToDiscordRelay(
     let content = event.content ?? "";
     if (!content && (!event.attachments || event.attachments.length === 0))
       return;
+
+    // Map Stoat role mentions to Discord role mentions where possible
+    if (content && discordClient) {
+      try {
+        content = await mapStoatRoleMentionsToDiscord(
+          content,
+          store,
+          discordClient,
+          link.discord_channel_id,
+          stoatClient
+        );
+      } catch (err) {
+        // fall back to raw content
+      }
+    }
 
     content = revoltToDiscord(content);
 
@@ -726,12 +750,20 @@ export async function relayDiscordEditToStoat(
   const content = truncateForRevolt(discordToRevolt(newContent));
   if (!content) return;
 
+  // Map Discord role mentions to Stoat mentions when editing
+  let mappedContent = content;
+  try {
+    mappedContent = mapDiscordRoleMentionsToStoat(mappedContent, store);
+  } catch (_err) {
+    // Ignore mapping errors
+  }
+
   try {
     markEdited(mapping.stoat_message_id);
     await stoatClient.editMessage(
       mapping.stoat_channel_id,
       mapping.stoat_message_id,
-      content
+      mappedContent
     );
   } catch (err) {
     console.error("[bridge] Discord→Stoat edit sync error:", err);
