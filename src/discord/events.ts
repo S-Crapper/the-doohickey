@@ -483,9 +483,8 @@ async function handleStatus(
     }
   }
 
-  // Add bridged channels as its own field
-  embed.addFields({ name: `Bridged Channels (${guildLinks.length})`, value: bridgedValue });
-    .setTimestamp();
+  // Add bridged channels as its own field and set timestamp
+  embed.addFields({ name: `Bridged Channels (${guildLinks.length})`, value: bridgedValue }).setTimestamp();
 
   await interaction.reply({ embeds: [embed] });
 }
