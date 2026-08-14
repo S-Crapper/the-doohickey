@@ -1,3 +1,47 @@
+git branch -M main
+git push -u origin main
+error: remote origin already exists.
+Username for 'https://github.com': s-crapper
+Password for 'https://s-crapper@github.com': 
+Enumerating objects: 501, done.
+Counting objects: 100% (501/501), done.
+Delta compression using up to 6 threads
+Compressing objects: 100% (197/197), done.
+Writing objects: 100% (501/501), 254.15 KiB | 127.08 MiB/s, done.
+Total 501 (delta 305), reused 489 (delta 301), pack-reused 0
+remote: Resolving deltas: 100% (305/305), done.
+To https://github.com/S-Crapper/the-doohickey.git
+ * [new branch]      main -> main
+branch 'main' set up to track 'origin/main'.
+truenas_admin@truenas[...Whonnock/apps/stoatcord/stoatcord-bot]$ git pull
+Already up to date.
+truenas_admin@truenas[...Whonnock/apps/stoatcord/stoatcord-bot]$ git push
+Username for 'https://github.com': s-crapper
+Password for 'https://s-crapper@github.com': 
+Everything up-to-date
+truenas_admin@truenas[...Whonnock/apps/stoatcord/stoatcord-bot]$ Linux truenas 6.12.33-production+truenas #1 SMP PREEMPT_DYNAMIC Wed May  6 14:52:17 UTC 2026 x86_64
+
+        TrueNAS (c) 2009-2026, iXsystems, Inc. dba TrueNAS
+        All rights reserved.
+        TrueNAS code is released under the LGPLv3 and GPLv3 licenses with some
+        source files copyrighted by (c) iXsystems, Inc. All other components
+        are released under their own respective licenses.
+
+        For more information, documentation, help or support, go here:
+        http://truenas.com
+
+Warning: the supported mechanisms for making configuration changes
+are the TrueNAS WebUI, CLI, and API exclusively. ALL OTHERS ARE
+NOT SUPPORTED AND WILL RESULT IN UNDEFINED BEHAVIOR AND MAY
+RESULT IN SYSTEM FAILURE.
+
+Welcome to TrueNAS
+Last login: Thu Aug 13 19:58:47 2026 from 192.168.5.3
+truenas_admin@truenas[~]$ cat /mnt/Whonnock/apps/stoatcord/stoatcord-bot/src/relay.ts
+cat: /mnt/Whonnock/apps/stoatcord/stoatcord-bot/src/relay.ts: No such file or directory
+truenas_admin@truenas[~]$ ls /mnt/Whonnock/apps/stoatcord/stoatcord-bot/src
+api  archive  bridge  config.ts  db  discord  env.ts  index.ts  migration  push  stoat  util.ts
+truenas_admin@truenas[~]$ cat /mnt/Whonnock/apps/stoatcord/stoatcord-bot/src/bridge/relay.ts
 /** Bidirectional message relay between Discord and Stoat */
 
 import type { Message as DiscordMessage } from "discord.js";
@@ -201,8 +245,8 @@ export async function relayDiscordToStoat(
   if (message.reference?.messageId) {
     const parentMapping = store.getBridgeMessageByDiscordId(message.reference.messageId);
     if (parentMapping) {
-      // Link as a proper Stoat reply
-      sendOpts.replies = [{ id: parentMapping.stoat_message_id, mention: false }];
+      // Link as a proper Stoat reply and ping the original author
+      sendOpts.replies = [{ id: parentMapping.stoat_message_id, mention: true }];
     } else {
       // Parent not in bridge_messages — prepend a quote-style fallback
       content = `> *Replying to a message*\n${content}`;
@@ -275,8 +319,43 @@ export function setupStoatToDiscordRelay(
       const parentStoatId = event.replies[0]!;
       const parentMapping = store.getBridgeMessageByStoatId(parentStoatId);
       if (parentMapping) {
-        // Reference the Discord message in a quote-style prefix
-        content = `⤷ *Replying to [message](https://discord.com/channels/@me/${link.discord_channel_id}/${parentMapping.discord_message_id})*\n${content}`;
+        // Look up the original author so we can ping them (webhooks can't
+        // use Discord's native reply-ping, so we do it via an explicit mention)
+        let mentionPrefix = "";
+        let previewText = "message";
+        if (discordClient) {
+          try {
+            const parentChannel = await discordClient.channels.fetch(
+              link.discord_channel_id
+            );
+            if (parentChannel?.isTextBased()) {
+              const parentMsg = await parentChannel.messages.fetch(
+                parentMapping.discord_message_id
+              );
+
+              if (parentMsg?.author && !parentMsg.webhookId) {
+                mentionPrefix = `<@${parentMsg.author.id}> `;
+              }
+
+              if (parentMsg?.content) {
+                const rawPreview = parentMsg.content
+                  .replace(/\s+/g, " ")
+                  .trim();
+                if (rawPreview) {
+                  previewText = rawPreview.length > 80 ? `${rawPreview.slice(0, 80)}…` : rawPreview;
+                }
+              }
+            }
+          } catch (err) {
+            console.warn(
+              "[bridge] Failed to fetch parent message for reply mention:",
+              err
+            );
+          }
+        }
+
+        const previewLink = `https://discord.com/channels/@me/${link.discord_channel_id}/${parentMapping.discord_message_id}`;
+        content = `-# ⤷ *${mentionPrefix}*[${previewText}](${previewLink})\n${content}`;
       } else {
         content = `⤷ *Replying to a message*\n${content}`;
       }
