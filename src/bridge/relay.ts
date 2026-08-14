@@ -226,6 +226,37 @@ export async function relayDiscordToStoat(
     }
   }
 
+  // Re-host Klipy embeds (Discord cached static.klipy.com media) as attachments
+  for (const embed of message.embeds ?? []) {
+    if (!embed.url?.includes("klipy.com")) continue;
+    // Prefer video (mp4) over thumbnail (webp)
+    const mediaUrl = (embed.video?.url ?? embed.thumbnail?.url) as string | null;
+    if (!mediaUrl) continue;
+    try {
+      const res = await fetch(mediaUrl);
+      if (!res.ok) {
+        content += `\n${mediaUrl}`;
+        continue;
+      }
+      const buffer = new Uint8Array(await res.arrayBuffer());
+      // Skip files over 20MB (Autumn upload limit)
+      if (buffer.length > 20 * 1024 * 1024) {
+        content += `\n${mediaUrl}`;
+        continue;
+      }
+      const filename = new URL(mediaUrl).pathname.split("/").pop() || "klipy";
+      const uploaded = await stoatClient.uploadFile("attachments", buffer, filename);
+      autumnIds.push(uploaded.id);
+      // Remove the klipy landing URL and direct media URL from content if present
+      if (message.content) {
+        content = content.replace(mediaUrl, "").replace(embed.url ?? "", "");
+      }
+    } catch (err) {
+      console.warn("[bridge] Klipy re-host failed, using URL fallback:", err);
+      content += `\n${mediaUrl}`;
+    }
+  }
+
   content = truncateForRevolt(content.trim());
   if (!content && autumnIds.length === 0) return;
 
