@@ -1,4 +1,4 @@
-]services:
+services:
   stoatcord-bot:
     image: stoatcord-bot:latest
     container_name: stoatcord-bot
