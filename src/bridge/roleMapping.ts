@@ -44,12 +44,13 @@ export async function mapStoatRoleMentionsToDiscord(
     if (!guildId) return content.replace(/<@([A-Z0-9]{26})>/g, "@stoat-role");
 
     const links = store.getRolesForGuild(guildId);
-    if (!links || links.length === 0) return content.replace(/<@([A-Z0-9]{26})>/g, "@stoat-role");
+    if (!links || links.length === 0) return content.replace(/<(?:@&?|%)([A-Z0-9]{26})>/g, "@stoat-role");
 
     const map: Record<string, string> = {};
     for (const l of links) map[l.stoat_role_id] = l.discord_role_id;
 
-    return content.replace(/<@([A-Z0-9]{26})>/g, (m, stoatRoleId: string) => {
+    // Match Stoat role mention variants: <@ULID>, <@&ULID>, or <%ULID>
+    return content.replace(/<(?:@&?|%)([A-Z0-9]{26})>/g, (_m, stoatRoleId: string) => {
       const discordRole = map[stoatRoleId];
       if (discordRole) return `<@&${discordRole}>`;
       return "@stoat-role";
