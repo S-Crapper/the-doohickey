@@ -107,6 +107,12 @@ export const commands: RESTPostAPIChatInputApplicationCommandsJSONBody[] = [
     .toJSON(),
 
   new SlashCommandBuilder()
+    .setName("link-roles")
+    .setDescription("Auto-match and link Discord roles to Stoat roles by name")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
+    .toJSON(),
+
+  new SlashCommandBuilder()
     .setName("unlink")
     .setDescription("Unlink this Discord channel from its Stoat bridge")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)

@@ -71,6 +71,10 @@ export function registerDiscordEvents(
         case "link-role":
           await handleLinkRole(interaction, store, stoatClient);
           break;
+
+        case "link-roles":
+          await handleLinkRoles(interaction, store, stoatClient, client);
+          break;
       }
     } catch (err) {
       console.error(
@@ -392,6 +396,81 @@ async function handleLinkRole(
     await interaction.editReply({ content: `Linked Discord role **${discordRole.name}** → Stoat role \`${stoatRoleId}\`.` });
   } catch (err) {
     await interaction.editReply({ content: `Failed to store role link: ${err instanceof Error ? err.message : String(err)}` });
+  }
+}
+
+async function handleLinkRoles(
+  interaction: ChatInputCommandInteraction,
+  store: Store,
+  stoatClient: StoatClient,
+  client: Client
+): Promise<void> {
+  const guildId = interaction.guildId;
+  if (!guildId) {
+    await interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
+    return;
+  }
+
+  const serverLink = store.getServerLink(guildId);
+  if (!serverLink) {
+    await interaction.reply({ content: "This Discord guild is not linked to a Stoat server. Run /migrate or link the server first.", ephemeral: true });
+    return;
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    const server = await stoatClient.getServer(serverLink.stoat_server_id);
+    const stoatRoles = server.roles ?? {};
+
+    // Build a name → id map for Stoat roles (first match wins)
+    const stoatByName: Record<string, string> = {};
+    for (const [id, role] of Object.entries(stoatRoles)) {
+      const name = (role.name ?? "").trim().toLowerCase();
+      if (!name) continue;
+      if (!(name in stoatByName)) stoatByName[name] = id;
+    }
+
+    // Ensure we have fresh guild role cache
+    const guild = client.guilds.cache.get(guildId) ?? interaction.guild;
+    if (!guild) {
+      await interaction.editReply({ content: "Failed to access guild roles." });
+      return;
+    }
+    await guild.roles.fetch();
+
+    const discordRoles = Array.from(guild.roles.cache.values());
+    const linked: Array<{ discord: string; stoatId: string }> = [];
+    const skipped: string[] = [];
+
+    for (const d of discordRoles) {
+      // Skip @everyone and managed roles
+      if (d.id === guild.id) continue;
+      if (d.managed) continue;
+
+      const name = d.name.trim().toLowerCase();
+      const stoatId = stoatByName[name];
+      if (stoatId) {
+        store.linkRole(d.id, stoatId, guildId);
+        linked.push({ discord: d.name, stoatId });
+        // Prevent duplicate matching
+        delete stoatByName[name];
+      } else {
+        skipped.push(d.name);
+      }
+    }
+
+    const remainingStoat = Object.entries(stoatByName).map(([id, _]) => id);
+
+    const parts: string[] = [];
+    parts.push(`Linked ${linked.length} role(s).`);
+    if (linked.length > 0) parts.push(linked.map((l) => `- ${l.discord} → ${l.stoatId}`).join("\n"));
+    if (skipped.length > 0) parts.push(`${skipped.length} Discord role(s) had no Stoat match: ${skipped.slice(0, 10).join(", ")}`);
+    if (remainingStoat.length > 0) parts.push(`${remainingStoat.length} Stoat role(s) not matched: ${remainingStoat.slice(0, 10).join(", ")}`);
+
+    await interaction.editReply({ content: parts.join("\n\n") });
+  } catch (err) {
+    await interaction.editReply({ content: `Failed to auto-link roles: ${err instanceof Error ? err.message : String(err)}` });
   }
 }
 
