@@ -348,6 +348,14 @@ async function handleLinkRole(
   // Ensure server is linked
   const serverLink = store.getServerLink(guildId);
   if (!serverLink) {
+    console.warn(`[link-role] No server link found for guildId=${guildId}`);
+    // Dump some DB state for debugging (non-sensitive)
+    try {
+      const guildLinks = store.getAllActiveChannelLinks();
+      console.warn(`[link-role] channel_links count=${guildLinks.length}`);
+    } catch (err) {
+      console.warn(`[link-role] failed to read channel links: ${err}`);
+    }
     await interaction.reply({ content: "This Discord guild is not linked to a Stoat server. Run /migrate or link the server first.", ephemeral: true });
     return;
   }
