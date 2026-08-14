@@ -1,20 +1,24 @@
-git branch -M main
-git push -u origin main
-error: remote origin already exists.
-Username for 'https://github.com': s-crapper
-Password for 'https://s-crapper@github.com': 
-Enumerating objects: 501, done.
-Counting objects: 100% (501/501), done.
-Delta compression using up to 6 threads
-Compressing objects: 100% (197/197), done.
-Writing objects: 100% (501/501), 254.15 KiB | 127.08 MiB/s, done.
-Total 501 (delta 305), reused 489 (delta 301), pack-reused 0
-remote: Resolving deltas: 100% (305/305), done.
-To https://github.com/S-Crapper/the-doohickey.git
- * [new branch]      main -> main
-branch 'main' set up to track 'origin/main'.
-truenas_admin@truenas[...Whonnock/apps/stoatcord/stoatcord-bot]$ git pull
 /** Bidirectional message relay between Discord and Stoat */
+
+import type { Message as DiscordMessage } from "discord.js";
+import type { StoatClient } from "../stoat/client.ts";
+import type { StoatWebSocket } from "../stoat/websocket.ts";
+import type { Store } from "../db/store.ts";
+import type {
+  BonfireMessageEvent,
+  BonfireMessageUpdateEvent,
+  BonfireMessageDeleteEvent,
+  BonfireMessageReactEvent,
+  BonfireMessageUnreactEvent,
+  BonfireChannelStartTypingEvent,
+  BonfireChannelUpdateEvent,
+  SendMessageRequest,
+  User,
+} from "../stoat/types.ts";
+import {
+  discordToRevolt,
+  revoltToDiscord,
+  truncateForRevolt,
   truncateForDiscord,
 } from "./format.ts";
 import {
