@@ -12,6 +12,10 @@ export function discordToRevolt(content: string): string {
   // Convert spoilers: ||text|| → !!text!!
   result = result.replace(/\|\|(.+?)\|\|/gs, "!!$1!!");
 
+  // Never relay raw server-wide pings. They are platform-specific and trigger notifications.
+  result = result.replace(/@everyone\b/g, "everyone");
+  result = result.replace(/@here\b/g, "here");
+
   // Strip Discord mentions — show as plain text since IDs don't map
   // User mentions: <@123456> or <@!123456> → @unknown
   result = result.replace(/<@!?(\d+)>/g, "@discord-user");
@@ -44,6 +48,10 @@ export function revoltToDiscord(content: string): string {
 
   // Convert spoilers: !!text!! → ||text||
   result = result.replace(/!!(.+?)!!/gs, "||$1||");
+
+  // Never relay server-wide pings. Convert any raw text mention to plain text.
+  result = result.replace(/@everyone\b/g, "everyone");
+  result = result.replace(/@here\b/g, "here");
 
   // Strip Revolt user mentions: <@ULID> → @stoat-user
   result = result.replace(/<@([A-Z0-9]{26})>/g, "@stoat-user");
