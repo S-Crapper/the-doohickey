@@ -99,7 +99,7 @@ async function recoverChannelGap(
             const sendOpts: Record<string, unknown> = {};
             if (!containsStoatRoleMention) {
               sendOpts.masquerade = {
-                name: `${msg.author.displayName || msg.author.username} [delayed]`,
+                name: `${msg.author.displayName || msg.author.username}`,
                 avatar: msg.author.displayAvatarURL({ size: 256, extension: "png" }),
               };
             }
@@ -161,10 +161,10 @@ async function recoverChannelGap(
         if (!content) continue;
 
         // Resolve author name
-        let username = "stoat-user [delayed]";
+        let username = "stoat-user";
         try {
           const user = await stoatClient.fetchUser(msg.author);
-          username = `${user.display_name || user.username} [delayed]`;
+          username = `${user.display_name || user.username}`;
         } catch {
           // Use fallback
         }
