@@ -81,6 +81,19 @@ async function resolveUser(
   }
 }
 
+function sanitizePreview(text: string): string {
+  if (!text) return text;
+  // Collapse whitespace and trim
+  text = text.replace(/\s+/g, ' ').trim();
+  // Break URLs to avoid auto-linking in Discord/Stoat
+  text = text.replace(/https?:\/\/\S+/g, (m) => m.replace('://', '://\u200b'));
+  // Escape Markdown-special characters so the preview displays literally
+  text = text.replace(/([\\_*~`>\[\]\(\)\{\}#\+\-\=\|!])/g, '\\$1');
+  // Prevent user pings
+  text = text.replace(/@/g, '@\u200b');
+  return text;
+}
+
 function markBridged(id: string): void {
   recentBridgedIds.add(id);
   setTimeout(() => recentBridgedIds.delete(id), BRIDGE_ID_TTL);
@@ -439,7 +452,8 @@ export function setupStoatToDiscordRelay(
                   .replace(/\s+/g, " ")
                   .trim();
                 if (rawPreview) {
-                  previewText = rawPreview.length > 80 ? `${rawPreview.slice(0, 80)}…` : rawPreview;
+                  const short = rawPreview.length > 80 ? `${rawPreview.slice(0, 80)}…` : rawPreview;
+                  previewText = sanitizePreview(short);
                 }
               }
             }
