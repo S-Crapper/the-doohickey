@@ -154,7 +154,7 @@ async function main(): Promise<void> {
     setupStoatCommands(stoatWs, store, stoatClient, botSelfId, discordClient, pushStore);
 
     // Set up Stoat→Discord message relay (includes typing, reactions, channel metadata sync)
-    setupStoatToDiscordRelay(stoatWs, store, config.stoatCdnUrl, stoatClient, discordClient);
+    setupStoatToDiscordRelay(stoatWs, store, config.stoatCdnUrl, stoatClient, discordClient, botSelfId);
 
     // Register Discord event handlers (includes Discord→Stoat relay)
     registerDiscordEvents(discordClient, store, stoatClient, config.stoatCdnUrl);

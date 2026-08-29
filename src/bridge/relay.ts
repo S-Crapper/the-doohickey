@@ -348,9 +348,12 @@ export function setupStoatToDiscordRelay(
   store: Store,
   stoatCdnUrl: string,
   stoatClient?: StoatClient,
-  discordClient?: import("discord.js").Client
+  discordClient?: import("discord.js").Client,
+  botSelfId?: string
 ): void {
   stoatWs.on("message", async (event: BonfireMessageEvent) => {
+    // Skip the bot's own messages to prevent echo loops
+    if (botSelfId && event.author === botSelfId) return;
     // Skip messages we bridged TO Stoat (prevent echo)
     if (wasBridged(event._id)) return;
 
