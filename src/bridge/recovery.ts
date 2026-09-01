@@ -4,7 +4,7 @@ import type { Client, TextChannel } from "discord.js";
 import type { StoatClient } from "../stoat/client.ts";
 import type { Store } from "../db/store.ts";
 import type { ChannelLinkRow } from "../db/schema.ts";
-import { discordToRevolt, revoltToDiscord, truncateForRevolt, truncateForDiscord } from "./format.ts";
+import { discordToRevolt, revoltToDiscord, sanitizeBridgeRoleMentions, truncateForRevolt, truncateForDiscord } from "./format.ts";
 import { sendViaWebhook } from "./webhooks.ts";
 import { sleep } from "../util.ts";
 
@@ -79,7 +79,7 @@ async function recoverChannelGap(
           // Never forward native Discord role pings across the bridge; they create
           // duplicate guild notifications and can re-trigger the same message.
           if (content) {
-            content = content.replace(/<@&(\d+)>/g, "@discord-role");
+            content = sanitizeBridgeRoleMentions(content);
           }
           content = discordToRevolt(content);
           // Append attachment URLs (not re-hosting during recovery to avoid flooding Autumn)
@@ -92,7 +92,7 @@ async function recoverChannelGap(
           try {
             // Sanitize any leftover numeric Discord user mentions to avoid unknown native pings on Stoat
             content = content.replace(/<@!?(\d+)>/g, "@discord-user");
-            content = content.replace(/<(?:@&?|%)[A-Z0-9]{26}>/g, "@stoat-role");
+            content = sanitizeBridgeRoleMentions(content);
 
             // If the content contains a Stoat role mention token (ULID form), avoid masquerading
             // because some Stoat servers do not resolve mentions inside masqueraded messages.

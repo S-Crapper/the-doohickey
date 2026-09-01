@@ -1,5 +1,12 @@
 /** Markdown/format conversion between Discord and Stoat/Revolt */
 
+export function sanitizeBridgeRoleMentions(content: string): string {
+  let result = content;
+  result = result.replace(/<@&(\d+)>/g, "@discord-role");
+  result = result.replace(/<(?:@&?|%)([A-Z0-9]{26})>/g, "@stoat-role");
+  return result;
+}
+
 /**
  * Convert Discord markdown to Revolt markdown.
  * Most syntax is identical — main differences:
@@ -27,7 +34,7 @@ export function discordToRevolt(content: string): string {
   result = result.replace(/<@&(\d+)>/g, "@discord-role");
 
   // Never relay Stoat role mentions into Discord as native pings.
-  result = result.replace(/<(?:@&?|%)([A-Z0-9]{26})>/g, "@stoat-role");
+  result = sanitizeBridgeRoleMentions(result);
 
   // Custom emoji: <:name:id> → :name:
   result = result.replace(/<a?:(\w+):\d+>/g, ":$1:");
@@ -60,7 +67,7 @@ export function revoltToDiscord(content: string): string {
   result = result.replace(/<@([A-Z0-9]{26})>/g, "@stoat-user");
 
   // Strip role mentions before they can trigger a native Discord ping.
-  result = result.replace(/<(?:@&?|%)([A-Z0-9]{26})>/g, "@stoat-role");
+  result = sanitizeBridgeRoleMentions(result);
 
   // Strip Revolt channel mentions: <#ULID>
   result = result.replace(/<#([A-Z0-9]{26})>/g, "#stoat-channel");

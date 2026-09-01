@@ -20,6 +20,7 @@ import { spawn } from "child_process";
 import {
   discordToRevolt,
   revoltToDiscord,
+  sanitizeBridgeRoleMentions,
   truncateForRevolt,
   truncateForDiscord,
 } from "./format.ts";
@@ -199,7 +200,7 @@ export async function relayDiscordToStoat(
   // Never forward native Discord role pings across the bridge: they replay as
   // duplicate mentions and can trigger an echo loop when the message comes back.
   if (content) {
-    content = content.replace(/<@&(\d+)>/g, "@discord-role");
+    content = sanitizeBridgeRoleMentions(content);
   }
 
   // Convert remaining Discord-specific syntax to Revolt-friendly form
@@ -304,6 +305,7 @@ export async function relayDiscordToStoat(
 
   // Sanitize any leftover numeric Discord user mentions to avoid unknown native pings on Stoat
   content = content.replace(/<@!?(\d+)>/g, "@discord-user");
+  content = sanitizeBridgeRoleMentions(content);
 
   if (process.env["STOATCORD_DEBUG"]) {
     console.log("[bridge][DEBUG] Discord→Stoat final content:", content);
@@ -376,7 +378,7 @@ export function setupStoatToDiscordRelay(
 
     // Never relay Stoat role pings as native Discord mentions; they can re-trigger
     // the same guild notification loop on the way back through the bridge.
-    content = content.replace(/<(?:@&?|%)([A-Z0-9]{26})>/g, "@stoat-role");
+    content = sanitizeBridgeRoleMentions(content);
 
     if (content && discordClient) {
       try {
@@ -820,8 +822,7 @@ export async function relayDiscordEditToStoat(
 
   // Never forward native Discord role pings across the bridge; keep them as text
   // so edits do not re-trigger the same role notification on Stoat.
-  let mappedContent = raw.replace(/<@&(\d+)>/g, "@discord-role");
-  mappedContent = mappedContent.replace(/<(?:@&?|%)[A-Z0-9]{26}>/g, "@stoat-role");
+  let mappedContent = sanitizeBridgeRoleMentions(raw);
 
   const content = truncateForRevolt(discordToRevolt(mappedContent));
   if (!content) return;
