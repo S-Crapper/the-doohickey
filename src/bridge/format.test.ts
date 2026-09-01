@@ -11,4 +11,11 @@ describe("mention sanitization", () => {
     const input = "Hello @everyone and @here folks";
     expect(revoltToDiscord(input)).toBe("Hello everyone and here folks");
   });
+
+  it("does not forward native role mentions across the bridge", () => {
+    expect(discordToRevolt("Hello <@&123456789> there")).toBe("Hello @discord-role there");
+
+    const stoatRoleId = "A".repeat(26);
+    expect(revoltToDiscord(`Hello <@${stoatRoleId}> there`)).toBe("Hello @stoat-role there");
+  });
 });

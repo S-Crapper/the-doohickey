@@ -23,10 +23,7 @@ import {
   truncateForRevolt,
   truncateForDiscord,
 } from "./format.ts";
-import {
-  mapDiscordRoleMentionsToStoat,
-  mapStoatRoleMentionsToDiscord,
-} from "./roleMapping.ts";
+import { mapStoatRoleMentionsToDiscord } from "./roleMapping.ts";
 import {
   sendViaWebhook,
   editViaWebhook,
@@ -199,9 +196,10 @@ export async function relayDiscordToStoat(
     }
   }
 
-  // Map any Discord role mentions to Stoat role mentions if we have mappings
-  if (content && message.guildId) {
-    content = mapDiscordRoleMentionsToStoat(content, store, message.guildId);
+  // Never forward native Discord role pings across the bridge: they replay as
+  // duplicate mentions and can trigger an echo loop when the message comes back.
+  if (content) {
+    content = content.replace(/<@&(\d+)>/g, "@discord-role");
   }
 
   // Convert remaining Discord-specific syntax to Revolt-friendly form
@@ -376,7 +374,10 @@ export function setupStoatToDiscordRelay(
     if (!content && (!event.attachments || event.attachments.length === 0))
       return;
 
-    // Map Stoat role mentions to Discord role mentions where possible
+    // Never relay Stoat role pings as native Discord mentions; they can re-trigger
+    // the same guild notification loop on the way back through the bridge.
+    content = content.replace(/<(?:@&?|%)([A-Z0-9]{26})>/g, "@stoat-role");
+
     if (content && discordClient) {
       try {
         content = await mapStoatRoleMentionsToDiscord(
@@ -817,13 +818,10 @@ export async function relayDiscordEditToStoat(
   let raw = newContent || "";
   if (!raw) return;
 
-  // Map Discord role mentions to Stoat mentions when editing (before conversion)
-  let mappedContent = raw;
-  try {
-    mappedContent = mapDiscordRoleMentionsToStoat(mappedContent, store);
-  } catch (_err) {
-    // Ignore mapping errors
-  }
+  // Never forward native Discord role pings across the bridge; keep them as text
+  // so edits do not re-trigger the same role notification on Stoat.
+  let mappedContent = raw.replace(/<@&(\d+)>/g, "@discord-role");
+  mappedContent = mappedContent.replace(/<(?:@&?|%)[A-Z0-9]{26}>/g, "@stoat-role");
 
   const content = truncateForRevolt(discordToRevolt(mappedContent));
   if (!content) return;

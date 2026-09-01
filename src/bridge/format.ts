@@ -26,6 +26,9 @@ export function discordToRevolt(content: string): string {
   // Role mentions: <@&123456> → @role
   result = result.replace(/<@&(\d+)>/g, "@discord-role");
 
+  // Never relay Stoat role mentions into Discord as native pings.
+  result = result.replace(/<(?:@&?|%)([A-Z0-9]{26})>/g, "@stoat-role");
+
   // Custom emoji: <:name:id> → :name:
   result = result.replace(/<a?:(\w+):\d+>/g, ":$1:");
 
@@ -55,6 +58,9 @@ export function revoltToDiscord(content: string): string {
 
   // Strip Revolt user mentions: <@ULID> → @stoat-user
   result = result.replace(/<@([A-Z0-9]{26})>/g, "@stoat-user");
+
+  // Strip role mentions before they can trigger a native Discord ping.
+  result = result.replace(/<(?:@&?|%)([A-Z0-9]{26})>/g, "@stoat-role");
 
   // Strip Revolt channel mentions: <#ULID>
   result = result.replace(/<#([A-Z0-9]{26})>/g, "#stoat-channel");
