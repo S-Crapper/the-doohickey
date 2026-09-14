@@ -98,7 +98,9 @@ async function recoverChannelGap(
             // because some Stoat servers do not resolve mentions inside masqueraded messages.
             const containsStoatRoleMention = /<(?:@&?|%)[A-Z0-9]{26}>/.test(content);
 
-            const sendOpts: Record<string, unknown> = {};
+            const sendOpts: Record<string, unknown> = {
+              nonce: `stoatcord:d2s:recovery:${msg.id}`,
+            };
             if (!containsStoatRoleMention) {
               sendOpts.masquerade = {
                 name: `${msg.author.displayName || msg.author.username}`,

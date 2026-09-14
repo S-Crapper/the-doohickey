@@ -275,6 +275,7 @@ export interface BonfireMessageEvent {
   type: "Message";
   // The message fields are at top level in the event
   _id: string;
+  nonce?: string;
   channel: string;
   author: string;
   content?: string;

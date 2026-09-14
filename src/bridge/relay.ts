@@ -35,6 +35,7 @@ import {
 // Track message IDs we've bridged to prevent echo loops
 const recentBridgedIds = new Set<string>();
 const BRIDGE_ID_TTL = 60_000; // 60 seconds
+const pendingBridgeNonces = new Set<string>();
 
 // Track edit IDs to prevent edit echo loops
 const recentEditIds = new Set<string>();
@@ -83,12 +84,10 @@ function sanitizePreview(text: string): string {
   if (!text) return text;
   // Collapse whitespace and trim
   text = text.replace(/\s+/g, ' ').trim();
-  // Break URLs to avoid auto-linking in Discord/Stoat
-  text = text.replace(/https?:\/\/\S+/g, (m) => m.replace('://', '://\u200b'));
-  // Escape Markdown-special characters so the preview displays literally
-  text = text.replace(/([\\_*~`>\[\]\(\)\{\}#\+\-\=\|!])/g, '\\$1');
-  // Prevent user pings
-  text = text.replace(/@/g, '@\u200b');
+  // Reply previews should remain plain text and must not expose clickable links.
+  text = text.replace(/https?:\/\/\S+/gi, '');
+  text = text.replace(/[\\_*~`>\[\]\(\)\{\}#+\-=|!@]/g, '');
+  text = text.replace(/\s+/g, ' ').trim();
   return text;
 }
 
@@ -99,6 +98,16 @@ function markBridged(id: string): void {
 
 function wasBridged(id: string): boolean {
   return recentBridgedIds.has(id);
+}
+
+function markBridgeNonce(nonce: string): void {
+  pendingBridgeNonces.add(nonce);
+  setTimeout(() => pendingBridgeNonces.delete(nonce), BRIDGE_ID_TTL);
+}
+
+function wasBridgeNonce(nonce: string | undefined): boolean {
+  return nonce?.startsWith("stoatcord:d2s:") === true ||
+    pendingBridgeNonces.has(nonce);
 }
 
 function markEdited(id: string): void {
@@ -165,6 +174,11 @@ export async function relayDiscordToStoat(
   store: Store
 ): Promise<void> {
   if (!message.content && message.attachments.size === 0) return;
+
+  // Register the loop guard before sending. The Stoat event can arrive before
+  // the REST request returns its response and message ID.
+  const bridgeNonce = `stoatcord:d2s:${message.id}`;
+  markBridgeNonce(bridgeNonce);
 
   // Build content
   let content = message.content ? message.content : "";
@@ -276,6 +290,7 @@ export async function relayDiscordToStoat(
 
   // Resolve reply chain: if this message replies to another, look up the Stoat counterpart
   const sendOpts: Partial<Omit<SendMessageRequest, "content">> = {
+    nonce: bridgeNonce,
     // Always masquerade as the Discord user to prevent Stoat→Discord echoing
     // back a second copy of the same message. Some Stoat servers may not
     // resolve role mentions inside masqueraded messages, but avoiding duplicate
@@ -354,6 +369,11 @@ export function setupStoatToDiscordRelay(
   stoatWs.on("message", async (event: BonfireMessageEvent) => {
     // Skip the bot's own messages to prevent echo loops
     if (botSelfId && event.author === botSelfId) return;
+    // Nonce is available before the send response, closing the send/event race.
+    if (wasBridgeNonce(event.nonce)) {
+      markBridged(event._id);
+      return;
+    }
     // Skip messages we bridged TO Stoat (prevent echo)
     if (wasBridged(event._id)) return;
 
@@ -428,9 +448,6 @@ export function setupStoatToDiscordRelay(
       const parentStoatId = event.replies[0]!;
       const parentMapping = store.getBridgeMessageByStoatId(parentStoatId);
       if (parentMapping) {
-        // Look up the original author so we can ping them (webhooks can't
-        // use Discord's native reply-ping, so we do it via an explicit mention)
-        let mentionPrefix = "";
         let previewText = "message";
         if (discordClient) {
           try {
@@ -442,17 +459,13 @@ export function setupStoatToDiscordRelay(
                 parentMapping.discord_message_id
               );
 
-              if (parentMsg?.author && !parentMsg.webhookId) {
-                mentionPrefix = `<@${parentMsg.author.id}> `;
-              }
-
               if (parentMsg?.content) {
                 const rawPreview = parentMsg.content
                   .replace(/\s+/g, " ")
                   .trim();
                 if (rawPreview) {
-                  const short = rawPreview.length > 80 ? `${rawPreview.slice(0, 80)}…` : rawPreview;
-                  previewText = sanitizePreview(short);
+                  const short = rawPreview.length > 80 ? `${rawPreview.slice(0, 80)}...` : rawPreview;
+                  previewText = sanitizePreview(short) || "message";
                 }
               }
             }
@@ -464,10 +477,9 @@ export function setupStoatToDiscordRelay(
           }
         }
 
-        const previewLink = `https://discord.com/channels/@me/${link.discord_channel_id}/${parentMapping.discord_message_id}`;
-        content = `-# ⤷ *${mentionPrefix}*[${previewText}](${previewLink})\n${content}`;
+        content = `Replying to ${previewText}\n${content}`;
       } else {
-        content = `⤷ *Replying to a message*\n${content}`;
+        content = `Replying to a message\n${content}`;
       }
     }
 
